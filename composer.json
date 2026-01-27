@@ -87,9 +87,7 @@
         "platform-check": false,
         "optimize-autoloader": true,
         "platform": {
-            "php": "8.4.0",
-            "ext-intl": "8.4",
-            "ext-zip": "8.4"
+            "php": "8.2.30"
         }
     },
     "minimum-stability": "stable",

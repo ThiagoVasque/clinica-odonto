@@ -1,33 +1,11 @@
 [variables]
-    # Variável crucial para o Nixpacks ativar as extensões no runtime
-    NIXPACKS_PHP_EXTENSIONS = 'intl, gd, zip, opcache, pdo_mysql'
-    # Fallback para garantir
-    PHP_EXTENSIONS = 'intl, gd, zip, opcache'
+    NIXPACKS_PHP_EXTENSIONS = 'intl, gd, zip, pdo_mysql, bcmath'
 
 [phases.setup]
-    nixPkgs = [
-        'php84',
-        'php84Packages.composer',
-        'php84Packages.intl',
-        'php84Packages.zip',
-        'php84Packages.gd',
-        'nodejs_20'
-    ]
-
-[phases.install]
-    cmds = [
-        'composer install --optimize-autoloader --no-interaction --ignore-platform-reqs',
-        'npm install'
-    ]
+    nixPkgs = ['php82', 'php82Packages.composer', 'nodejs_20']
 
 [phases.build]
-    cmds = [
-        'npm run build',
-        # Removido artisan optimize para evitar travas de cache em deploy
-        'php artisan config:clear',
-        'php artisan view:clear'
-    ]
+    cmds = ['composer install --ignore-platform-reqs', 'npm install', 'npm run build']
 
 [start]
-    # Comando limpo e direto para o diretório public
     cmd = 'php artisan migrate --force && php -S 0.0.0.0:$PORT -t public'
