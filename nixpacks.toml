@@ -1,0 +1,22 @@
+[phases.setup]
+# Aqui forçamos o PHP 8.3 e instalamos as extensões que o Filament pediu
+nixPkgs = [
+    'php83',
+    'php83Packages.composer',
+    'php83Packages.intl',
+    'php83Packages.zip',
+    'php83Packages.gd',
+    'nodejs_20'
+]
+
+[phases.install]
+# Instalamos as dependências do PHP e do JS
+cmds = ['composer install --optimize-autoloader --no-interaction', 'npm install']
+
+[phases.build]
+# Geramos o CSS/JS do Filament
+cmds = ['npm run build', 'php artisan optimize']
+
+[start]
+# Comando para ligar o site e rodar o banco
+cmd = 'php artisan migrate --force && php artisan serve --host=0.0.0.0 --port=$PORT'
