@@ -26,7 +26,9 @@ class AdminPanelProvider extends PanelProvider
             ->default()
             ->id('admin')
             ->path('admin')
-            ->login()
+            ->login() // Mantém o login
+            ->registration() // ADICIONADO: Permite criar conta na tela inicial
+            ->passwordReset() // ADICIONADO: Permite recuperar senha
             ->spa()
             ->colors([
                 'primary' => Color::Cyan,
@@ -34,6 +36,7 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->font('Poppins')
             ->brandName('JR Odontologia')
+            // Removemos a importação e o plugin do FullCalendar daqui
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\\Filament\\Pages')
             ->pages([
@@ -42,7 +45,6 @@ class AdminPanelProvider extends PanelProvider
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\\Filament\\Widgets')
             ->widgets([
                 Widgets\AccountWidget::class,
-                
             ])
             ->middleware([
                 EncryptCookies::class,
@@ -58,8 +60,9 @@ class AdminPanelProvider extends PanelProvider
             ->authMiddleware([
                 Authenticate::class,
             ])
-            ->brandName('Clínica Odonto')
             ->bootUsing(function () {
+                // Força o sistema a falar Português
+                config(['app.locale' => 'pt_BR']);
                 \Illuminate\Support\Facades\Date::setLocale('pt_BR');
             });
     }

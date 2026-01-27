@@ -3,38 +3,42 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\ProcedimentoResource\Pages;
-use App\Filament\Resources\ProcedimentoResource\RelationManagers;
 use App\Models\Procedimento;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class ProcedimentoResource extends Resource
 {
     protected static ?string $model = Procedimento::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
+    protected static ?string $navigationIcon = 'heroicon-o-briefcase'; // Ícone de maleta para serviços
+
+    // Ajustes de Sidebar e Títulos
+    protected static ?string $modelLabel = 'Procedimento';
+    protected static ?string $pluralModelLabel = 'Procedimentos';
+    protected static ?string $navigationGroup = 'Configurações';
 
     public static function form(Form $form): Form
     {
         return $form
             ->schema([
-                \Filament\Forms\Components\Section::make('Detalhes do Serviço')
+                Forms\Components\Section::make('Detalhes do Serviço')
+                    ->description('Defina os valores padrão para os tratamentos da clínica')
                     ->schema([
-                        \Filament\Forms\Components\TextInput::make('descricao')
+                        Forms\Components\TextInput::make('descricao')
                             ->label('Descrição do Procedimento')
                             ->required()
                             ->placeholder('Ex: Limpeza, Canal, Extração...'),
-                        \Filament\Forms\Components\TextInput::make('valor_base')
-                            ->label('Valor sugerido (R$)')
+                        Forms\Components\TextInput::make('valor_base')
+                            ->label('Valor Sugerido')
                             ->numeric()
                             ->prefix('R$')
-                            ->required(),
-                    ])
+                            ->required()
+                            ->placeholder('0,00'),
+                    ])->columns(2)
             ]);
     }
 
@@ -42,24 +46,34 @@ class ProcedimentoResource extends Resource
     {
         return $table
             ->columns([
-                \Filament\Tables\Columns\TextColumn::make('descricao')
+                Tables\Columns\TextColumn::make('descricao')
                     ->label('Procedimento')
-                    ->searchable(),
-                \Filament\Tables\Columns\TextColumn::make('valor_base')
-                    ->label('Preço Base')
-                    ->money('BRL') // Já coloca o R$ e as vírgulas automaticamente
+                    ->searchable()
                     ->sortable(),
+                Tables\Columns\TextColumn::make('valor_base')
+                    ->label('Preço Base')
+                    ->money('BRL')
+                    ->sortable()
+                    ->color('success')
+                    ->weight('bold'),
             ])
             ->actions([
-                \Filament\Tables\Actions\EditAction::make(),
+                // Agora padronizado com ActionGroup
+                Tables\Actions\ActionGroup::make([
+                    Tables\Actions\EditAction::make()
+                        ->label('Alterar Preço'),
+                    Tables\Actions\DeleteAction::make()
+                        ->label('Remover Serviço'),
+                ])
+                ->icon('heroicon-m-ellipsis-vertical')
+                ->color('gray')
+                ->tooltip('Opções'),
+            ])
+            ->bulkActions([
+                Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\DeleteBulkAction::make(),
+                ]),
             ]);
-    }
-
-    public static function getRelations(): array
-    {
-        return [
-            //
-        ];
     }
 
     public static function getPages(): array

@@ -3,54 +3,56 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\PacienteResource\Pages;
-use App\Filament\Resources\PacienteResource\RelationManagers;
 use App\Models\Paciente;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class PacienteResource extends Resource
 {
     protected static ?string $model = Paciente::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
+    protected static ?string $navigationIcon = 'heroicon-o-users'; // Ícone de usuários combina mais
 
-    // app/Filament/Resources/PacienteResource.php
+    // Nomes corrigidos para a Sidebar
+    protected static ?string $modelLabel = 'Paciente';
+    protected static ?string $pluralModelLabel = 'Pacientes';
+    protected static ?string $navigationGroup = 'Atendimento';
 
     public static function form(Form $form): Form
     {
         return $form
             ->schema([
-                \Filament\Forms\Components\Section::make('Dados Pessoais')
+                Forms\Components\Section::make('Dados Pessoais')
                     ->description('Informações básicas do paciente')
                     ->schema([
-                        \Filament\Forms\Components\TextInput::make('nome')
+                        Forms\Components\TextInput::make('nome')
                             ->label('Nome Completo')
                             ->required()
                             ->maxLength(255),
-                        \Filament\Forms\Components\TextInput::make('cpf')
+                        Forms\Components\TextInput::make('cpf')
                             ->label('CPF')
                             ->mask('999.999.999-99')
-                            // Ajustado para evitar o erro visual do VS Code
                             ->unique(table: 'pacientes', ignoreRecord: true)
                             ->required(),
-                        \Filament\Forms\Components\DatePicker::make('data_nascimento')
+                        Forms\Components\DatePicker::make('data_nascimento')
                             ->label('Data de Nascimento')
-                            ->native(false)
-                            ->displayFormat('d/m/Y'),
-                        \Filament\Forms\Components\TextInput::make('telefone')
+                            ->displayFormat('d/m/Y')
+                            ->native(true) 
+                            ->placeholder('__/__/____')
+                            ->maxDate(now()), 
+                        Forms\Components\TextInput::make('telefone')
                             ->label('WhatsApp/Telefone')
                             ->tel()
                             ->mask('(99) 99999-9999'),
-                        \Filament\Forms\Components\TextInput::make('email')
+                        Forms\Components\TextInput::make('email')
                             ->label('E-mail')
                             ->email(),
-                        \Filament\Forms\Components\Textarea::make('historico_medico')
+                        Forms\Components\Textarea::make('historico_medico')
                             ->label('Histórico Médico (Anamnese)')
+                            ->placeholder('Alergias, medicamentos em uso, cirurgias prévias...')
                             ->columnSpanFull(),
                     ])->columns(2)
             ]);
@@ -60,39 +62,52 @@ class PacienteResource extends Resource
     {
         return $table
             ->columns([
-                \Filament\Tables\Columns\TextColumn::make('nome')
+                Tables\Columns\TextColumn::make('nome')
                     ->label('Nome do Paciente')
-                    ->searchable() // Cria uma barra de busca só para nomes
+                    ->searchable()
                     ->sortable(),
-                \Filament\Tables\Columns\TextColumn::make('cpf')
+                Tables\Columns\TextColumn::make('cpf')
                     ->label('CPF')
                     ->searchable(),
-                \Filament\Tables\Columns\TextColumn::make('telefone')
+                Tables\Columns\TextColumn::make('telefone')
                     ->label('WhatsApp/Celular'),
-                \Filament\Tables\Columns\TextColumn::make('created_at')
+                Tables\Columns\TextColumn::make('created_at')
                     ->label('Cadastrado em')
                     ->dateTime('d/m/Y H:i')
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                // Por enquanto deixaremos vazio, mas aqui poderíamos filtrar por data, etc.
+                //
             ])
             ->actions([
-                Tables\Actions\EditAction::make(), // Botão de Lápis para editar
+                // AGORA DENTRO DO DROPDOWN (ActionGroup)
+                Tables\Actions\ActionGroup::make([
+                    Tables\Actions\EditAction::make()
+                        ->label('Editar Registro'),
+
+                    Tables\Actions\Action::make('whatsapp')
+                        ->label('Chamar no Zap')
+                        ->icon('heroicon-o-chat-bubble-left-right')
+                        ->color('success')
+                        ->url(function (Paciente $record) {
+                            if (!$record->telefone) return null;
+                            $telefone = preg_replace('/\D/', '', $record->telefone);
+                            return "https://wa.me/55{$telefone}";
+                        })
+                        ->openUrlInNewTab(),
+
+                    Tables\Actions\DeleteAction::make()
+                        ->label('Excluir Paciente'),
+                ])
+                    ->icon('heroicon-m-ellipsis-vertical') // Ícone de 3 pontinhos
+                    ->tooltip('Opções')
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(), // Permite apagar vários de uma vez
+                    Tables\Actions\DeleteBulkAction::make(),
                 ]),
             ]);
-    }
-
-    public static function getRelations(): array
-    {
-        return [
-            //
-        ];
     }
 
     public static function getPages(): array

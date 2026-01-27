@@ -14,9 +14,14 @@ return new class extends Migration
         Schema::create('agendamentos', function (Blueprint $table) {
             $table->id();
             $table->foreignId('paciente_id')->constrained('pacientes')->onDelete('cascade');
-            $table->dateTime('data_hora');
-            $table->string('status')->default('agendado'); // agendado, confirmado, cancelado, finalizado
+
+            $table->string('titulo')->default('Consulta');
+            $table->dateTime('data_hora'); // Voltamos para o nome simples
+
+            $table->string('status')->default('agendado');
             $table->text('observacoes')->nullable();
+            $table->string('cor')->default('#22d3ee');
+
             $table->timestamps();
         });
     }
@@ -26,6 +31,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        //
+        Schema::dropIfExists('agendamentos');
     }
 };

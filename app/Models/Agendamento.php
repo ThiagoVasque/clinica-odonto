@@ -6,7 +6,18 @@ use Illuminate\Database\Eloquent\Model;
 
 class Agendamento extends Model
 {
-    protected $fillable = ['paciente_id', 'data_hora', 'status', 'observacoes'];
+    protected $fillable = [
+        'paciente_id',
+        'titulo',
+        'data_hora',
+        'status',
+        'observacoes',
+        'cor',
+    ];
+
+    protected $casts = [
+        'data_hora' => 'datetime',
+    ];
 
     public function paciente()
     {

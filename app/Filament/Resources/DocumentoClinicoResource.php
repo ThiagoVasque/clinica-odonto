@@ -3,21 +3,24 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\DocumentoClinicoResource\Pages;
-use App\Filament\Resources\DocumentoClinicoResource\RelationManagers;
 use App\Models\DocumentoClinico;
+use App\Models\Paciente;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class DocumentoClinicoResource extends Resource
 {
+    protected static ?string $model = DocumentoClinico::class;
+    
     protected static ?string $modelLabel = 'Documento Clínico';
     protected static ?string $pluralModelLabel = 'Receitas e Atestados';
     protected static ?string $navigationIcon = 'heroicon-o-document-text';
+    
+    // Organiza na sidebar junto com outros documentos
+    protected static ?string $navigationGroup = 'Atendimento';
 
     public static function form(Form $form): Form
     {
@@ -34,22 +37,25 @@ class DocumentoClinicoResource extends Resource
                             ->label('Paciente'),
 
                         Forms\Components\Select::make('tipo')
+                            ->label('Tipo de Documento')
                             ->options([
                                 'receita' => 'Receita Médica',
                                 'atestado' => 'Atestado Odontológico',
                                 'declaracao' => 'Declaração de Comparecimento',
                             ])
                             ->required()
-                            ->label('Tipo de Documento')
-                            ->live() // Faz o formulário reagir à mudança
+                            ->live()
                             ->afterStateUpdated(function ($state, $set, $get) {
-                                $pacienteNome = \App\Models\Paciente::find($get('paciente_id'))?->nome ?? '...';
+                                $paciente = Paciente::find($get('paciente_id'));
+                                $pacienteNome = $paciente?->nome ?? '...';
 
-                                // Templates Automáticos
+                                // Templates Automáticos melhorados
                                 if ($state === 'atestado') {
-                                    $set('conteudo', "Atesto para os devidos fins que o(a) Sr(a) **$pacienteNome** esteve em tratamento odontológico nesta data, necessitando de _____ dias de repouso.");
+                                    $set('conteudo', "Atesto para os devidos fins que o(a) Sr(a) <strong>$pacienteNome</strong> esteve em tratamento odontológico nesta data, necessitando de _____ dias de repouso.");
                                 } elseif ($state === 'receita') {
-                                    $set('conteudo', "Uso contínuo:\n1. ___________ - Tomar 01 comprimido a cada ___ horas.");
+                                    $set('conteudo', "<strong>Uso contínuo:</strong><br>1. ___________ - Tomar 01 comprimido a cada ___ horas.");
+                                } elseif ($state === 'declaracao') {
+                                    $set('conteudo', "Declaro para os devidos fins que o(a) Sr(a) <strong>$pacienteNome</strong> compareceu a esta clínica odontológica no dia de hoje, no período das ____:____ às ____:____.");
                                 }
                             }),
 
@@ -58,15 +64,8 @@ class DocumentoClinicoResource extends Resource
                             ->required()
                             ->columnSpanFull()
                             ->toolbarButtons([
-                                'blockquote',
-                                'bold',
-                                'bulletList',
-                                'h2',
-                                'h3',
-                                'italic',
-                                'orderedList',
-                                'redo',
-                                'undo',
+                                'blockquote', 'bold', 'bulletList', 'h2', 'h3', 
+                                'italic', 'orderedList', 'redo', 'undo',
                             ]),
                     ])->columns(2),
             ]);
@@ -83,31 +82,48 @@ class DocumentoClinicoResource extends Resource
                 Tables\Columns\TextColumn::make('tipo')
                     ->label('Tipo')
                     ->badge()
-                    ->color(fn(string $state): string => match ($state) {
+                    ->formatStateUsing(fn (string $state): string => match ($state) {
+                        'receita' => 'Receita',
+                        'atestado' => 'Atestado',
+                        'declaracao' => 'Declaração',
+                        default => $state,
+                    })
+                    ->color(fn (string $state): string => match ($state) {
                         'receita' => 'info',
                         'atestado' => 'danger',
+                        'declaracao' => 'warning',
                         default => 'gray',
                     }),
                 Tables\Columns\TextColumn::make('created_at')
                     ->label('Emitido em')
-                    ->dateTime('d/m/Y H:i'),
+                    ->dateTime('d/m/Y H:i')
+                    ->sortable(),
             ])
+            ->defaultSort('created_at', 'desc') // Mais recentes primeiro
             ->actions([
-                Tables\Actions\Action::make('pdf')
-                    ->label('Imprimir')
-                    ->icon('heroicon-o-printer')
-                    ->color('success')
-                    ->url(fn($record) => route('documento.pdf', $record))
-                    ->openUrlInNewTab(),
-                Tables\Actions\EditAction::make(),
+                // PADRONIZADO: ActionGroup para as ações de documento
+                Tables\Actions\ActionGroup::make([
+                    Tables\Actions\Action::make('pdf')
+                        ->label('Imprimir PDF')
+                        ->icon('heroicon-o-printer')
+                        ->color('success')
+                        ->url(fn($record) => route('documento.pdf', $record))
+                        ->openUrlInNewTab(),
+                        
+                    Tables\Actions\EditAction::make()
+                        ->label('Editar Conteúdo'),
+                        
+                    Tables\Actions\DeleteAction::make()
+                        ->label('Excluir Registro'),
+                ])
+                ->icon('heroicon-m-ellipsis-vertical')
+                ->tooltip('Opções'),
+            ])
+            ->bulkActions([
+                Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\DeleteBulkAction::make(),
+                ]),
             ]);
-    }
-
-    public static function getRelations(): array
-    {
-        return [
-            //
-        ];
     }
 
     public static function getPages(): array

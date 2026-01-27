@@ -9,14 +9,15 @@ use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
+use Carbon\Carbon;
 
 class AgendamentoResource extends Resource
 {
     protected static ?string $model = Agendamento::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-calendar-days';
-    
-    // Traduções do Menu e Cabeçalhos
+
     protected static ?string $modelLabel = 'Agendamento';
     protected static ?string $pluralModelLabel = 'Agendamentos';
     protected static ?string $navigationGroup = 'Atendimento';
@@ -26,34 +27,52 @@ class AgendamentoResource extends Resource
         return $form
             ->schema([
                 Forms\Components\Section::make('Marcar Consulta')
-                    ->description('Informe os dados para o novo agendamento')
                     ->schema([
                         Forms\Components\Select::make('paciente_id')
-                            ->label('Paciente') // Traduzido
                             ->relationship('paciente', 'nome')
                             ->searchable()
                             ->preload()
-                            ->required(),
-                        Forms\Components\DateTimePicker::make('data_hora')
-                            ->label('Data e Hora da Consulta')
-                            ->native(false)
-                            ->displayFormat('d/m/Y H:i')
-                            ->minutesStep(15)
-                            ->seconds(false)
                             ->required()
-                            ->locale('pt_BR'),
+                            ->columnSpanFull(),
+
+                        Forms\Components\DatePicker::make('data_agendamento') // Nome diferente do banco
+                            ->label('Data')
+                            ->displayFormat('d/m/Y')
+                            ->required()
+                            ->live()
+                            // Carrega a data do banco ao editar
+                            ->formatStateUsing(fn($record) => $record?->data_hora?->format('Y-m-d'))
+                            ->dehydrated(false),
+
+                        Forms\Components\TextInput::make('hora_agendamento') // Nome diferente do banco
+                            ->label('Horário')
+                            ->mask('99:99')
+                            ->required()
+                            ->live()
+                            // Carrega a hora do banco ao editar
+                            ->formatStateUsing(fn($record) => $record?->data_hora?->format('H:i'))
+                            ->dehydrated(false),
+
+                        // O campo REAL do banco fica escondido e processa os dados só no envio (dehydrate)
+                        Forms\Components\Hidden::make('data_hora')
+                            ->dehydrated(true)
+                            ->dehydrateStateUsing(function ($get) {
+                                $data = $get('data_agendamento');
+                                $hora = $get('hora_agendamento');
+
+                                if (!$data || !$hora) return null;
+                                return "{$data} {$hora}";
+                            }),
+
                         Forms\Components\Select::make('status')
-                            ->label('Situação') // Traduzido
                             ->options([
                                 'agendado' => 'Agendado',
                                 'confirmado' => 'Confirmado',
                                 'concluido' => 'Concluído',
                                 'cancelado' => 'Cancelado',
-                            ])->default('agendado'),
-                        Forms\Components\Textarea::make('observacoes')
-                            ->label('Observações')
-                            ->placeholder('Ex: Paciente relatou dor no siso...')
-                            ->columnSpanFull(),
+                            ])
+                            ->default('agendado')
+                            ->required(),
                     ])->columns(2)
             ]);
     }
@@ -61,30 +80,60 @@ class AgendamentoResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
+            ->defaultSort('data_hora', 'asc')
             ->columns([
+                Tables\Columns\TextColumn::make('data_hora')
+                    ->label('Horário')
+                    ->dateTime('H:i')
+                    ->description(fn(Agendamento $record): string => $record->data_hora->format('d/m/Y'))
+                    ->color('primary')
+                    ->weight('bold')
+                    ->sortable(),
+
                 Tables\Columns\TextColumn::make('paciente.nome')
                     ->label('Paciente')
                     ->searchable()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('data_hora')
-                    ->label('Data/Hora')
-                    ->dateTime('d/m/Y H:i')
-                    ->sortable(),
+
                 Tables\Columns\TextColumn::make('status')
                     ->badge()
                     ->label('Status')
                     ->color(fn(string $state): string => match ($state) {
                         'agendado' => 'info',
                         'confirmado' => 'success',
-                        'concluido' => 'primary',
+                        'concluido' => 'gray',
                         'cancelado' => 'danger',
                         default => 'gray',
                     })
                     ->formatStateUsing(fn(string $state): string => ucfirst($state)),
+
+                Tables\Columns\TextColumn::make('paciente.telefone')
+                    ->label('Lembrete')
+                    ->formatStateUsing(fn() => 'WhatsApp')
+                    ->icon('heroicon-m-chat-bubble-left-right')
+                    ->color('success')
+                    ->url(function (Agendamento $record) {
+                        if (!$record->paciente?->telefone) return null;
+                        $texto = urlencode("Olá {$record->paciente->nome}, confirmamos sua consulta na JR Odontologia em {$record->data_hora->format('d/m')} às {$record->data_hora->format('H:i')}?");
+                        return "https://wa.me/55" . preg_replace('/\D/', '', $record->paciente->telefone) . "?text={$texto}";
+                    })
+                    ->openUrlInNewTab(),
             ])
             ->filters([
+                // Filtros de período para substituir o calendário
+                Tables\Filters\Filter::make('data_hora')
+                    ->form([
+                        Forms\Components\DatePicker::make('desde')->label('Desde'),
+                        Forms\Components\DatePicker::make('ate')->label('Até'),
+                    ])
+                    ->query(function (Builder $query, array $data): Builder {
+                        return $query
+                            ->when($data['desde'], fn($query, $date) => $query->whereDate('data_hora', '>=', $date))
+                            ->when($data['ate'], fn($query, $date) => $query->whereDate('data_hora', '<=', $date));
+                    }),
+
                 Tables\Filters\SelectFilter::make('status')
-                    ->label('Filtrar por Status')
+                    ->label('Situação')
                     ->options([
                         'agendado' => 'Agendado',
                         'confirmado' => 'Confirmado',
@@ -93,12 +142,27 @@ class AgendamentoResource extends Resource
                     ]),
             ])
             ->actions([
-                Tables\Actions\EditAction::make()->label('Editar'), // Botão traduzido
+                // Ações rápidas para a Dra. não precisar entrar no "Editar"
+                Tables\Actions\ActionGroup::make([
+                    Tables\Actions\EditAction::make(),
+                    Tables\Actions\Action::make('confirmar')
+                        ->label('Confirmar')
+                        ->icon('heroicon-o-check-circle')
+                        ->color('success')
+                        ->action(fn(Agendamento $record) => $record->update(['status' => 'confirmado']))
+                        ->requiresConfirmation(),
+                    Tables\Actions\Action::make('cancelar')
+                        ->label('Cancelar')
+                        ->icon('heroicon-o-x-circle')
+                        ->color('danger')
+                        ->action(fn(Agendamento $record) => $record->update(['status' => 'cancelado']))
+                        ->requiresConfirmation(),
+                ]),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make()->label('Excluir Selecionados'),
-                ])->label('Ações em Massa'),
+                    Tables\Actions\DeleteBulkAction::make(),
+                ]),
             ]);
     }
 
