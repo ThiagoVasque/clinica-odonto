@@ -36,9 +36,9 @@ class OrcamentoResource extends Resource
                                 'aprovado' => 'Aprovado',
                                 'pago' => 'Pago',
                             ])->default('pendente'),
-                        
+
                         \Filament\Forms\Components\Repeater::make('itens')
-                            ->relationship('itens') 
+                            ->relationship('itens')
                             ->schema([
                                 \Filament\Forms\Components\Select::make('procedimento_id')
                                     ->relationship('procedimento', 'descricao')
@@ -73,7 +73,7 @@ class OrcamentoResource extends Resource
                     ->sortable(),
                 \Filament\Tables\Columns\TextColumn::make('status')
                     ->badge()
-                    ->color(fn (string $state): string => match ($state) {
+                    ->color(fn(string $state): string => match ($state) {
                         'pendente' => 'danger',
                         'aprovado' => 'warning',
                         'pago' => 'success',
@@ -92,6 +92,33 @@ class OrcamentoResource extends Resource
                     ]),
             ])
             ->actions([
+                // Botão para Gerar o PDF Profissional
+                Tables\Actions\Action::make('pdf')
+                    ->label('PDF')
+                    ->icon('heroicon-o-document-arrow-down')
+                    ->color('info')
+                    ->url(fn(\App\Models\Orcamento $record): string => route('orcamento.pdf', $record))
+                    ->openUrlInNewTab(),
+
+                // Botão para enviar diretamente para o WhatsApp do Paciente
+                Tables\Actions\Action::make('whatsapp')
+                    ->label('Enviar Zap')
+                    ->icon('heroicon-o-chat-bubble-left-right')
+                    ->color('success')
+                    ->url(function (\App\Models\Orcamento $record) {
+                        // Calcula o total para colocar na mensagem
+                        $total = number_format($record->itens->sum(fn($i) => $i->quantidade * $i->valor_unitario), 2, ',', '.');
+
+                        // Texto da mensagem (URL Encoded)
+                        $texto = urlencode("Olá " . $record->paciente->nome . "! Segue o orçamento da JR Odontologia no valor total de R$ " . $total . ". Caso queira aprovar, basta responder esta mensagem.");
+
+                        // Limpa o número de telefone (remove parênteses e traços)
+                        $telefone = preg_replace('/[^0-9]/', '', $record->paciente->telefone);
+
+                        return "https://wa.me/55" . $telefone . "?text=" . $texto;
+                    })
+                    ->openUrlInNewTab(),
+
                 Tables\Actions\EditAction::make(),
             ])
             ->bulkActions([
