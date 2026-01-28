@@ -3,10 +3,10 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class DocumentoClinico extends Model
 {
-    // Como a tabela tem um nome personalizado, avisamos o Model
     protected $table = 'documentos_clinicos';
 
     protected $fillable = [
@@ -15,8 +15,7 @@ class DocumentoClinico extends Model
         'conteudo'
     ];
 
-    // Relacionamento: O documento pertence a um paciente
-    public function paciente()
+    public function paciente(): BelongsTo
     {
         return $this->belongsTo(Paciente::class);
     }

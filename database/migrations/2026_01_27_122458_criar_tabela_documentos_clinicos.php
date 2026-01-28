@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('documentos_clinicos', function (Blueprint $table) {
             $table->id();
             $table->foreignId('paciente_id')->constrained('pacientes');
-            $table->enum('tipo', ['receita', 'atestado']);
+            $table->enum('tipo', ['receita', 'atestado', 'declaracao']);
             $table->text('conteudo');
             $table->timestamps();
         });
