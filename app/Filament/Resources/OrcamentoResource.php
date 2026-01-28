@@ -16,10 +16,7 @@ use Filament\Forms\Get;
 class OrcamentoResource extends Resource
 {
     protected static ?string $model = Orcamento::class;
-
     protected static ?string $navigationIcon = 'heroicon-o-calculator';
-
-    // CORREÇÃO: Define o nome correto com acentuação na Sidebar
     protected static ?string $modelLabel = 'Orçamento';
     protected static ?string $pluralModelLabel = 'Orçamentos';
     protected static ?string $navigationGroup = 'Financeiro';
@@ -36,7 +33,7 @@ class OrcamentoResource extends Resource
                             ->searchable()
                             ->preload()
                             ->required(),
-                            
+
                         Forms\Components\Select::make('status')
                             ->label('Situação')
                             ->options([
@@ -45,10 +42,10 @@ class OrcamentoResource extends Resource
                                 'pago' => 'Pago',
                             ])
                             ->default('pendente')
-                            ->required(),
+                            ->required()
+                            ->live(),
 
                         Forms\Components\Repeater::make('itens')
-                            ->label('Procedimentos do Orçamento')
                             ->relationship('itens')
                             ->schema([
                                 Forms\Components\Select::make('procedimento_id')
@@ -56,10 +53,12 @@ class OrcamentoResource extends Resource
                                     ->relationship('procedimento', 'descricao')
                                     ->required()
                                     ->live()
-                                    ->afterStateUpdated(function ($state, Set $set) {
-                                        // Busca o valor base do procedimento automaticamente
-                                        $procedimento = Procedimento::find($state);
+                                    ->distinct() // Evita selecionar o mesmo procedimento duas vezes
+                                    ->disableOptionsWhenSelectedInSiblingRepeaterItems() // Estético: remove da lista o que já foi usado
+                                    ->afterStateUpdated(function ($state, Set $set, Get $get) {
+                                        $procedimento = \App\Models\Procedimento::find($state);
                                         $set('valor_unitario', $procedimento?->valor_base ?? 0);
+                                        self::atualizarTotal($get, $set);
                                     })
                                     ->columnSpan(2),
 
@@ -68,30 +67,51 @@ class OrcamentoResource extends Resource
                                     ->numeric()
                                     ->default(1)
                                     ->required()
-                                    ->live(),
+                                    ->live(onBlur: true)
+                                    ->afterStateUpdated(fn(Get $get, Set $set) => self::atualizarTotal($get, $set)),
 
                                 Forms\Components\TextInput::make('valor_unitario')
                                     ->label('Preço Unitário')
                                     ->numeric()
                                     ->prefix('R$')
-                                    ->required()
-                                    ->live(),
-
-                                // Campo informativo de Subtotal por item
-                                Forms\Components\Placeholder::make('subtotal')
-                                    ->label('Subtotal')
-                                    ->content(function (Get $get) {
-                                        $qtd = (float) ($get('quantidade') ?? 0);
-                                        $valor = (float) ($get('valor_unitario') ?? 0);
-                                        return 'R$ ' . number_format($qtd * $valor, 2, ',', '.');
-                                    }),
+                                    ->readOnly()
+                                    ->extraInputAttributes(['class' => 'bg-gray-100']),
                             ])
-                            ->columns(5)
-                            ->columnSpanFull()
-                            ->grid(1) // Organiza melhor visualmente
-                            ->addActionLabel('Adicionar Procedimento'),
+                            ->live() // ESSENCIAL: Faz o repeater avisar o formulário sobre mudanças
+                            ->afterStateUpdated(fn(Get $get, Set $set) => self::atualizarTotal($get, $set))
+                            ->minItems(1)
+                            ->deletable(fn(Get $get) => count($get('itens') ?? []) > 1)
+                            ->columns(4)
+                            ->columnSpanFull(),
+
+                        Forms\Components\TextInput::make('valor_total')
+                            ->label('Valor Total do Orçamento')
+                            ->numeric()
+                            ->prefix('R$')
+                            ->readOnly()
+                            ->columnSpanFull(),
                     ])->columns(2)
             ]);
+    }
+
+    // Função centralizada para cálculo
+    public static function atualizarTotal(Get $get, Set $set): void
+    {
+        // Buscamos os itens subindo dois níveis para garantir que pegamos o array completo do formulário
+        $itens = $get('../../itens') ?? $get('itens') ?? [];
+        $total = 0;
+
+        foreach ($itens as $item) {
+            $qtd = (float) ($item['quantidade'] ?? 0);
+            $vlr = (float) ($item['valor_unitario'] ?? 0);
+            $total += ($qtd * $vlr);
+        }
+
+        // Atualizamos o campo valor_total no nível da Section
+        $set('../../valor_total', $total);
+
+        // Fallback caso a função seja chamada fora do contexto do repeater
+        $set('valor_total', $total);
     }
 
     public static function table(Table $table): Table
@@ -114,13 +134,10 @@ class OrcamentoResource extends Resource
                     })
                     ->formatStateUsing(fn($state) => ucfirst($state)),
 
-                // Exibe o Valor Total direto na tabela
                 Tables\Columns\TextColumn::make('total')
                     ->label('Valor Total')
                     ->money('BRL')
-                    ->state(function (Orcamento $record) {
-                        return $record->itens->sum(fn($item) => $item->quantidade * $item->valor_unitario);
-                    }),
+                    ->state(fn(Orcamento $record) => $record->itens->sum(fn($item) => $item->quantidade * $item->valor_unitario)),
 
                 Tables\Columns\TextColumn::make('created_at')
                     ->label('Data')
@@ -129,7 +146,6 @@ class OrcamentoResource extends Resource
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('status')
-                    ->label('Situação')
                     ->options([
                         'pendente' => 'Pendente',
                         'aprovado' => 'Aprovado',
@@ -144,19 +160,17 @@ class OrcamentoResource extends Resource
                         ->color('info')
                         ->url(fn(Orcamento $record): string => route('orcamento.pdf', $record))
                         ->openUrlInNewTab(),
-
                     Tables\Actions\Action::make('whatsapp')
                         ->label('Enviar WhatsApp')
                         ->icon('heroicon-o-chat-bubble-left-right')
                         ->color('success')
                         ->url(function (Orcamento $record) {
                             $total = number_format($record->itens->sum(fn($i) => $i->quantidade * $i->valor_unitario), 2, ',', '.');
-                            $texto = urlencode("Olá " . $record->paciente->nome . "! Segue o orçamento da JR Odontologia no valor total de R$ " . $total . ". Podemos agendar?");
+                            $texto = urlencode("Olá " . $record->paciente->nome . "! Segue o orçamento no valor de R$ " . $total);
                             $telefone = preg_replace('/\D/', '', $record->paciente->telefone);
                             return "https://wa.me/55{$telefone}?text={$texto}";
                         })
                         ->openUrlInNewTab(),
-
                     Tables\Actions\EditAction::make(),
                     Tables\Actions\DeleteAction::make(),
                 ])

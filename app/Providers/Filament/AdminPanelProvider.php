@@ -26,9 +26,9 @@ class AdminPanelProvider extends PanelProvider
             ->default()
             ->id('admin')
             ->path('admin')
-            ->login() // Mantém o login
-            ->registration() // ADICIONADO: Permite criar conta na tela inicial
-            ->passwordReset() // ADICIONADO: Permite recuperar senha
+            ->login() 
+            ->registration() 
+            ->passwordReset()
             ->spa()
             ->colors([
                 'primary' => Color::Cyan,
@@ -43,9 +43,6 @@ class AdminPanelProvider extends PanelProvider
                 Pages\Dashboard::class,
             ])
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\\Filament\\Widgets')
-            ->widgets([
-                Widgets\AccountWidget::class,
-            ])
             ->middleware([
                 EncryptCookies::class,
                 AddQueuedCookiesToResponse::class,

@@ -9,6 +9,7 @@ use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use App\Filament\Resources\PacienteResource\RelationManagers;
 
 class PacienteResource extends Resource
 {
@@ -40,9 +41,9 @@ class PacienteResource extends Resource
                         Forms\Components\DatePicker::make('data_nascimento')
                             ->label('Data de Nascimento')
                             ->displayFormat('d/m/Y')
-                            ->native(true) 
+                            ->native(true)
                             ->placeholder('__/__/____')
-                            ->maxDate(now()), 
+                            ->maxDate(now()),
                         Forms\Components\TextInput::make('telefone')
                             ->label('WhatsApp/Telefone')
                             ->tel()
@@ -116,6 +117,14 @@ class PacienteResource extends Resource
             'index' => Pages\ListPacientes::route('/'),
             'create' => Pages\CreatePaciente::route('/create'),
             'edit' => Pages\EditPaciente::route('/{record}/edit'),
+        ];
+    }
+
+    public static function getRelations(): array
+    {
+        return [
+            // Adicione esta linha:
+            RelationManagers\ProntuariosRelationManager::class,
         ];
     }
 }

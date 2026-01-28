@@ -4,49 +4,68 @@ namespace App\Filament\Widgets;
 
 use App\Models\Agendamento;
 use Filament\Widgets\ChartWidget;
-use Flowframe\Trend\Trend;
-use Flowframe\Trend\TrendValue;
 
 class PacientesChart extends ChartWidget
 {
-    protected static ?string $heading = 'Consultas por Dia';
+    protected static ?string $heading = 'Consultas na Semana';
+    protected static ?int $sort = 3;
+    protected int | string | array $columnSpan = 1; 
 
-    protected static ?int $sort = 3; // Fica depois dos Stats e da Tabela
+    protected static ?array $options = [
+        'scales' => [
+            'y' => [
+                'beginAtZero' => true,
+                'ticks' => ['stepSize' => 1, 'precision' => 0],
+                'grid' => ['display' => false],
+            ],
+            'x' => [
+                'grid' => ['display' => false],
+            ],
+        ],
+        'plugins' => [
+            'legend' => ['display' => false],
+        ],
+    ];
 
     protected function getData(): array
     {
-        // Buscamos os agendamentos dos últimos 7 dias
-        $agendamentosPorDia = \App\Models\Agendamento::query()
+        $agendamentosPorDia = Agendamento::query()
             ->selectRaw('DATE(data_hora) as date, count(*) as total')
             ->where('data_hora', '>=', now()->subDays(6))
             ->groupBy('date')
-            ->orderBy('date')
             ->get()
             ->pluck('total', 'date')
             ->toArray();
 
-        // Preparamos as labels (datas) e os valores
         $values = [];
         $labels = [];
 
+        $diasSemana = [
+            'Sunday' => 'Dom', 'Monday' => 'Seg', 'Tuesday' => 'Ter',
+            'Wednesday' => 'Qua', 'Thursday' => 'Qui', 'Friday' => 'Sex', 'Saturday' => 'Sáb'
+        ];
+
         for ($i = 6; $i >= 0; $i--) {
-            $date = now()->subDays($i)->format('Y-m-d');
-            $labels[] = now()->subDays($i)->format('d/m'); // Ex: 27/01
-            $values[] = $agendamentosPorDia[$date] ?? 0; // Se não houver nada, coloca 0
+            $dateObj = now()->subDays($i);
+            $date = $dateObj->format('Y-m-d');
+            $labels[] = $diasSemana[$dateObj->format('l')] . ' (' . $dateObj->format('d/m') . ')';
+            $values[] = $agendamentosPorDia[$date] ?? 0;
         }
 
         return [
             'datasets' => [
                 [
-                    'label' => 'Consultas Reais',
+                    'label' => 'Consultas',
                     'data' => $values,
-                    'backgroundColor' => '#22d3ee',
-                    'borderColor' => '#0891b2',
+                    'backgroundColor' => '#4f46e5',
+                    'borderRadius' => 4,
+                    'barPercentage' => 0.6,
                 ],
             ],
             'labels' => $labels,
         ];
     }
+
     protected function getType(): string
     {
         return 'bar';

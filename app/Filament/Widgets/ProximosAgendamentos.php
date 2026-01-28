@@ -2,7 +2,7 @@
 
 namespace App\Filament\Widgets;
 
-use App\Models\Agendamento; // IMPORTANTE: Não esqueça essa linha
+use App\Models\Agendamento;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Widgets\TableWidget as BaseWidget;
@@ -10,17 +10,24 @@ use Illuminate\Support\Carbon;
 
 class ProximosAgendamentos extends BaseWidget
 {
-    protected static ?string $heading = 'Agenda do Dia';
-    
+    protected static ?string $heading = null;
+
     protected int | string | array $columnSpan = 'full';
 
-    protected static ?int $sort = 2; // Fica abaixo dos cartões de estatísticas
+    protected static ?int $sort = 1;
 
     public function table(Table $table): Table
     {
+        $user = \Illuminate\Support\Facades\Auth::user();
+
+        // Agora sim, pegamos só o primeiro nome
+        $primeiroNome = explode(' ', trim($user?->name ?? 'Doutor'))[0];
+
         return $table
+            // Trocado de $user->name para $primeiroNome
+            ->heading("Olá, {$primeiroNome}! 👋")
+            ->description('Confira sua agenda para hoje, ' . now()->format('d/m/Y'))
             ->query(
-                // Busca agendamentos de hoje
                 Agendamento::query()
                     ->whereDate('data_hora', Carbon::today())
                     ->orderBy('data_hora', 'asc')
@@ -31,19 +38,21 @@ class ProximosAgendamentos extends BaseWidget
                     ->dateTime('H:i')
                     ->badge()
                     ->color('gray'),
+
                 Tables\Columns\TextColumn::make('paciente.nome')
                     ->label('Paciente'),
+
                 Tables\Columns\TextColumn::make('status')
                     ->label('Status')
                     ->badge()
-                    ->color(fn (string $state): string => match ($state) {
+                    ->color(fn(string $state): string => match ($state) {
                         'agendado' => 'info',
                         'confirmado' => 'success',
                         'cancelado' => 'danger',
                         'concluido' => 'primary',
                         default => 'gray',
                     })
-                    ->formatStateUsing(fn (string $state): string => ucfirst($state)),
+                    ->formatStateUsing(fn(string $state): string => ucfirst($state)),
             ])
             ->actions([
                 Tables\Actions\Action::make('whatsapp')
