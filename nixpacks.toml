@@ -2,10 +2,10 @@
     NIXPACKS_PHP_EXTENSIONS = 'intl, gd, zip, pdo_mysql, bcmath'
 
 [phases.setup]
-    nixPkgs = ['php82', 'php82Packages.composer', 'nodejs_20']
+    nixPkgs = ['php82', 'php82Packages.intl', 'nodejs_20']
 
-[phases.build]
-    cmds = ['composer install --ignore-platform-reqs', 'npm install', 'npm run build']
+[phases.install]
+    cmds = ['composer install --ignore-platform-reqs', 'npm install']
 
 [start]
     cmd = 'php artisan migrate --force && php -S 0.0.0.0:$PORT -t public'
